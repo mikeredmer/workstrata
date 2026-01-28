@@ -19,6 +19,103 @@ export interface RoleProfile {
 
 export const roleProfiles: RoleProfile[] = [
   {
+    id: 'product-manager',
+    title: 'Product Manager',
+    aliases: ['product owner', 'product lead', 'head of product', 'product director'],
+    workflows: [
+      {
+        id: 'pdm-1',
+        name: 'User feedback aggregation',
+        description: 'Collecting and organizing feedback from support tickets, reviews, and user interviews',
+        avgHoursPerWeek: 3,
+        strataLevel: 1,
+        automationTools: ['Productboard', 'Canny', 'UserVoice'],
+        quickWin: 'Set up Productboard to auto-import feedback from Intercom and Zendesk'
+      },
+      {
+        id: 'pdm-2',
+        name: 'Competitive intelligence tracking',
+        description: 'Monitoring competitor updates, pricing changes, and feature releases',
+        avgHoursPerWeek: 2,
+        strataLevel: 1,
+        automationTools: ['Klue', 'Crayon', 'Feedly'],
+        quickWin: 'Set up Feedly with competitor RSS feeds and Google Alerts'
+      },
+      {
+        id: 'pdm-3',
+        name: 'Release notes and changelog',
+        description: 'Writing and distributing release notes across channels',
+        avgHoursPerWeek: 2,
+        strataLevel: 1,
+        automationTools: ['LaunchNotes', 'Productboard', 'Notion'],
+        quickWin: 'Use LaunchNotes to auto-distribute updates to customers and stakeholders'
+      },
+      {
+        id: 'pdm-4',
+        name: 'PRD and spec writing',
+        description: 'Drafting product requirements documents and feature specs',
+        avgHoursPerWeek: 4,
+        strataLevel: 2,
+        automationTools: ['Claude', 'Notion AI', 'ChatGPT'],
+        quickWin: 'Create PRD templates with AI to draft first versions from bullet points'
+      },
+      {
+        id: 'pdm-5',
+        name: 'Metrics and KPI dashboards',
+        description: 'Building and updating product analytics dashboards',
+        avgHoursPerWeek: 2,
+        strataLevel: 2,
+        automationTools: ['Amplitude', 'Mixpanel', 'Metabase'],
+        quickWin: 'Set up automated weekly metrics reports sent to Slack'
+      },
+      {
+        id: 'pdm-6',
+        name: 'User research synthesis',
+        description: 'Analyzing interview transcripts and extracting insights',
+        avgHoursPerWeek: 3,
+        strataLevel: 2,
+        automationTools: ['Dovetail', 'Claude', 'Otter.ai'],
+        quickWin: 'Use Dovetail or Claude to summarize interview transcripts'
+      },
+      {
+        id: 'pdm-7',
+        name: 'Roadmap communication',
+        description: 'Creating and updating roadmap views for different stakeholders',
+        avgHoursPerWeek: 2,
+        strataLevel: 2,
+        automationTools: ['Productboard', 'Aha!', 'Notion'],
+        quickWin: 'Set up filtered roadmap views that auto-update from your source of truth'
+      },
+      {
+        id: 'pdm-8',
+        name: 'Prioritization and trade-offs',
+        description: 'Deciding what to build and what to cut',
+        avgHoursPerWeek: 4,
+        strataLevel: 3,
+        automationTools: [],
+        quickWin: 'This requires your judgment - data can inform but you decide'
+      },
+      {
+        id: 'pdm-9',
+        name: 'Stakeholder alignment',
+        description: 'Managing expectations and building consensus across teams',
+        avgHoursPerWeek: 4,
+        strataLevel: 3,
+        automationTools: [],
+        quickWin: 'This is high-value human work - protect it'
+      },
+      {
+        id: 'pdm-10',
+        name: 'Product strategy and vision',
+        description: 'Defining where the product should go and why',
+        avgHoursPerWeek: 3,
+        strataLevel: 3,
+        automationTools: [],
+        quickWin: 'AI can help with research, but vision is yours'
+      }
+    ]
+  },
+  {
     id: 'marketing-manager',
     title: 'Marketing Manager',
     aliases: ['marketing director', 'marketing lead', 'head of marketing', 'growth manager', 'demand gen manager'],

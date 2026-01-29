@@ -3,12 +3,22 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { roleProfiles, findRoleByTitle, type RoleProfile, type Workflow } from '@/data/role-workflows'
+import { skillQuestions, skillLabels, levelLabels, questionToSkillKey, calculateReadinessScore, getSkillTip, type SkillAssessment } from '@/data/skills-assessment'
 
-type Step = 'profile' | 'workflows' | 'results'
+type Step = 'profile' | 'workflows' | 'skills' | 'results'
 
 interface SelectedWorkflow extends Workflow {
   selected: boolean
   customHours?: number
+}
+
+const defaultSkillAssessment: SkillAssessment = {
+  contextAssembly: 'developing',
+  qualityJudgment: 'developing',
+  taskDecomposition: 'developing',
+  iterativeRefinement: 'developing',
+  workflowIntegration: 'developing',
+  frontierRecognition: 'developing'
 }
 
 export default function CapturePage() {
@@ -17,6 +27,8 @@ export default function CapturePage() {
   const [salary, setSalary] = useState('')
   const [matchedRole, setMatchedRole] = useState<RoleProfile | null>(null)
   const [workflows, setWorkflows] = useState<SelectedWorkflow[]>([])
+  const [skillAssessment, setSkillAssessment] = useState<SkillAssessment>(defaultSkillAssessment)
+  const [currentSkillIndex, setCurrentSkillIndex] = useState(0)
   const [showSignupModal, setShowSignupModal] = useState(false)
   const [email, setEmail] = useState('')
   const [signupSent, setSignupSent] = useState(false)
@@ -29,6 +41,7 @@ export default function CapturePage() {
   const totalHoursPerWeek = selectedWorkflows.reduce((sum, w) => sum + (w.customHours ?? w.avgHoursPerWeek), 0)
   const automatableHours = automatableWorkflows.reduce((sum, w) => sum + (w.customHours ?? w.avgHoursPerWeek), 0)
   const automatableDollars = automatableHours * hourlyRate * 50
+  const readinessScore = calculateReadinessScore(skillAssessment)
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,7 +57,30 @@ export default function CapturePage() {
     setWorkflows(prev => prev.map(w => w.id === id ? { ...w, selected: !w.selected } : w))
   }
 
-  const handleSeeResults = () => setStep('results')
+  const handleContinueToSkills = () => {
+    setCurrentSkillIndex(0)
+    setStep('skills')
+  }
+
+  const handleSkillAnswer = (level: 'developing' | 'intermediate' | 'advanced' | 'unsure') => {
+    const currentQuestion = skillQuestions[currentSkillIndex]
+    const skillKey = questionToSkillKey[currentQuestion.id]
+    
+    setSkillAssessment(prev => ({
+      ...prev,
+      [skillKey]: level
+    }))
+    
+    if (currentSkillIndex < skillQuestions.length - 1) {
+      setCurrentSkillIndex(prev => prev + 1)
+    } else {
+      setStep('results')
+    }
+  }
+
+  const handleSkipSkills = () => {
+    setStep('results')
+  }
   
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,7 +96,8 @@ export default function CapturePage() {
           role: matchedRole?.title || jobTitle,
           salary: salary ? parseInt(salary) : undefined,
           workflows: selectedWorkflows.map(w => w.name),
-          potentialSavings: automatableDollars
+          potentialSavings: automatableDollars,
+          skillAssessment
         })
       })
       
@@ -161,7 +198,7 @@ export default function CapturePage() {
                       <p className="font-semibold text-gray-900">{selectedWorkflows.length} workflow{selectedWorkflows.length > 1 ? 's' : ''} selected</p>
                       <p className="text-sm text-gray-600">{totalHoursPerWeek} hrs/week • <span className="text-green-600 font-semibold">${(totalHoursPerWeek * hourlyRate * 50).toLocaleString()}/year</span> potential</p>
                     </div>
-                    <button onClick={handleSeeResults} className="bg-primary-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-primary-700 transition">See My Results →</button>
+                    <button onClick={handleContinueToSkills} className="bg-primary-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-primary-700 transition">Continue →</button>
                   </div>
                 </div>
               </>
@@ -169,7 +206,72 @@ export default function CapturePage() {
           </div>
         )}
 
-        {/* STEP 3: Results */}
+        {/* STEP 3: Skills Assessment */}
+        {step === 'skills' && (
+          <div className="max-w-2xl mx-auto">
+            {/* Progress indicator */}
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-gray-600">AI Readiness Assessment</span>
+                <span className="text-sm text-gray-500">{currentSkillIndex + 1} of {skillQuestions.length}</span>
+              </div>
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary-600 transition-all duration-300"
+                  style={{ width: `${((currentSkillIndex + 1) / skillQuestions.length) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Current question */}
+            {skillQuestions[currentSkillIndex] && (
+              <div className="bg-white rounded-2xl border p-8">
+                <div className="mb-6">
+                  <span className="inline-block bg-primary-100 text-primary-700 text-sm font-medium px-3 py-1 rounded-full mb-3">
+                    {skillQuestions[currentSkillIndex].skill}
+                  </span>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                    {skillQuestions[currentSkillIndex].question}
+                  </h2>
+                  <p className="text-gray-500 text-sm">
+                    {skillQuestions[currentSkillIndex].skillDescription}
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {skillQuestions[currentSkillIndex].options.map((option, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSkillAnswer(option.level)}
+                      className="w-full text-left p-4 rounded-xl border-2 border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition"
+                    >
+                      <span className="text-gray-900">{option.text}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-6 pt-6 border-t flex justify-between items-center">
+                  <button 
+                    onClick={handleSkipSkills}
+                    className="text-gray-500 hover:text-gray-700 text-sm"
+                  >
+                    Skip assessment →
+                  </button>
+                  {currentSkillIndex > 0 && (
+                    <button 
+                      onClick={() => setCurrentSkillIndex(prev => prev - 1)}
+                      className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+                    >
+                      ← Previous
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* STEP 4: Results */}
         {step === 'results' && (
           <div>
             {/* Hero Metrics */}
@@ -179,7 +281,7 @@ export default function CapturePage() {
                 <span className="bg-white/20 text-sm px-3 py-1 rounded-full">${hourlyRate}/hr</span>
               </div>
               
-              <div className="grid md:grid-cols-2 gap-8">
+              <div className="grid md:grid-cols-3 gap-8">
                 <div>
                   <p className="text-primary-200 text-sm font-medium mb-1">TIME YOU CAN RECLAIM</p>
                   <p className="text-5xl font-bold mb-1">{automatableHours}<span className="text-2xl font-normal opacity-80"> hrs/week</span></p>
@@ -190,6 +292,35 @@ export default function CapturePage() {
                   <p className="text-5xl font-bold mb-1">${Math.round(automatableDollars / 1000)}K</p>
                   <p className="text-primary-200">{automatableHours * 50} hours back per year</p>
                 </div>
+                <div>
+                  <p className="text-primary-200 text-sm font-medium mb-1">AI READINESS</p>
+                  <p className="text-5xl font-bold mb-1">{readinessScore}<span className="text-2xl font-normal opacity-80">%</span></p>
+                  <p className="text-primary-200">Based on 6 core skills</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Skills Summary */}
+            <div className="bg-white rounded-2xl border p-6 mb-6">
+              <h2 className="font-bold text-gray-900 mb-4">Your AI Skills Profile</h2>
+              <p className="text-gray-600 text-sm mb-6">How ready you are to succeed with AI automation</p>
+              
+              <div className="grid md:grid-cols-2 gap-4">
+                {(Object.keys(skillAssessment) as (keyof SkillAssessment)[]).map(skillKey => {
+                  const level = skillAssessment[skillKey]
+                  const levelInfo = levelLabels[level]
+                  return (
+                    <div key={skillKey} className="border rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-gray-900">{skillLabels[skillKey]}</span>
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${levelInfo.color}`}>
+                          {levelInfo.label}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">{getSkillTip(skillKey, level)}</p>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 

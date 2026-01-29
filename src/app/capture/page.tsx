@@ -2,15 +2,47 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { roleProfiles, findRoleByTitle, type RoleProfile, type Workflow } from '@/data/role-workflows'
+import { useRouter } from 'next/navigation'
 import { skillQuestions, skillLabels, levelLabels, questionToSkillKey, calculateReadinessScore, getSkillTip, type SkillAssessment } from '@/data/skills-assessment'
 
-type Step = 'profile' | 'workflows' | 'skills' | 'results'
+type Step = 'role' | 'tasks' | 'skills' | 'personalization' | 'results'
 
-interface SelectedWorkflow extends Workflow {
-  selected: boolean
-  customHours?: number
-}
+const industries = [
+  'Technology', 'Finance', 'Healthcare', 'Marketing', 'Sales', 
+  'Consulting', 'Education', 'Legal', 'HR', 'Operations', 'Other'
+]
+
+const companySizes = [
+  '1-10', '11-50', '51-200', '201-500', '501-1000', '1000+'
+]
+
+const responsibilities = [
+  'Writing & Documentation', 'Research & Analysis', 'Data Management',
+  'Communication & Emails', 'Project Management', 'Presentations',
+  'Customer Interaction', 'Report Generation', 'Meeting Management',
+  'Process Documentation', 'Decision Making', 'Team Coordination'
+]
+
+const taskTypes = [
+  'Email drafting and responses', 'Meeting notes and summaries',
+  'Research and information gathering', 'Data entry and cleanup',
+  'Report writing', 'Presentation creation', 'Scheduling and planning',
+  'Document review', 'Social media management', 'Customer support responses',
+  'Content creation', 'Analysis and insights', 'Process documentation',
+  'Training materials', 'Proposal writing'
+]
+
+const learningPreferences = [
+  { id: 'video', label: 'Video tutorials', desc: 'Watch and learn' },
+  { id: 'text', label: 'Articles & guides', desc: 'Read at my pace' },
+  { id: 'mixed', label: 'Mix of both', desc: 'Variety works best' }
+]
+
+const emailTimes = [
+  { id: 'morning', label: 'Morning (7-9am)', desc: 'Start the day learning' },
+  { id: 'lunch', label: 'Midday (12-1pm)', desc: 'Learn during lunch' },
+  { id: 'evening', label: 'Evening (6-8pm)', desc: 'Wind down with learning' }
+]
 
 const defaultSkillAssessment: SkillAssessment = {
   contextAssembly: 'developing',
@@ -22,42 +54,45 @@ const defaultSkillAssessment: SkillAssessment = {
 }
 
 export default function CapturePage() {
-  const [step, setStep] = useState<Step>('profile')
+  const router = useRouter()
+  const [step, setStep] = useState<Step>('role')
+  
+  // Role mapping
   const [jobTitle, setJobTitle] = useState('')
-  const [salary, setSalary] = useState('')
-  const [matchedRole, setMatchedRole] = useState<RoleProfile | null>(null)
-  const [workflows, setWorkflows] = useState<SelectedWorkflow[]>([])
+  const [industry, setIndustry] = useState('')
+  const [companySize, setCompanySize] = useState('')
+  const [selectedResponsibilities, setSelectedResponsibilities] = useState<string[]>([])
+  
+  // Task inventory
+  const [timeConsumingTasks, setTimeConsumingTasks] = useState<string[]>([])
+  const [repetitiveTasks, setRepetitiveTasks] = useState<string[]>([])
+  const [judgmentTasks, setJudgmentTasks] = useState<string[]>([])
+  
+  // Skills
   const [skillAssessment, setSkillAssessment] = useState<SkillAssessment>(defaultSkillAssessment)
   const [currentSkillIndex, setCurrentSkillIndex] = useState(0)
-  const [showSignupModal, setShowSignupModal] = useState(false)
-  const [email, setEmail] = useState('')
-  const [signupSent, setSignupSent] = useState(false)
-  const [signupLoading, setSignupLoading] = useState(false)
-  const [signupError, setSignupError] = useState('')
+  
+  // Personalization
+  const [learningPreference, setLearningPreference] = useState('')
+  const [emailTime, setEmailTime] = useState('')
+  const [focusArea, setFocusArea] = useState('')
 
-  const hourlyRate = salary ? Math.round(parseInt(salary) / 2080) : 50
-  const selectedWorkflows = workflows.filter(w => w.selected)
-  const automatableWorkflows = selectedWorkflows.filter(w => w.strataLevel <= 2)
-  const totalHoursPerWeek = selectedWorkflows.reduce((sum, w) => sum + (w.customHours ?? w.avgHoursPerWeek), 0)
-  const automatableHours = automatableWorkflows.reduce((sum, w) => sum + (w.customHours ?? w.avgHoursPerWeek), 0)
-  const automatableDollars = automatableHours * hourlyRate * 50
   const readinessScore = calculateReadinessScore(skillAssessment)
 
-  const handleProfileSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const role = findRoleByTitle(jobTitle)
-    if (role) {
-      setMatchedRole(role)
-      setWorkflows(role.workflows.map(w => ({ ...w, selected: false })))
+  const toggleSelection = (item: string, selected: string[], setSelected: (items: string[]) => void) => {
+    if (selected.includes(item)) {
+      setSelected(selected.filter(i => i !== item))
+    } else {
+      setSelected([...selected, item])
     }
-    setStep('workflows')
   }
 
-  const handleWorkflowToggle = (id: string) => {
-    setWorkflows(prev => prev.map(w => w.id === id ? { ...w, selected: !w.selected } : w))
+  const handleRoleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setStep('tasks')
   }
 
-  const handleContinueToSkills = () => {
+  const handleTasksSubmit = () => {
     setCurrentSkillIndex(0)
     setStep('skills')
   }
@@ -74,45 +109,28 @@ export default function CapturePage() {
     if (currentSkillIndex < skillQuestions.length - 1) {
       setCurrentSkillIndex(prev => prev + 1)
     } else {
-      setStep('results')
+      setStep('personalization')
     }
   }
 
-  const handleSkipSkills = () => {
+  const handlePersonalizationSubmit = () => {
     setStep('results')
   }
-  
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSignupLoading(true)
-    setSignupError('')
-    
-    try {
-      const response = await fetch('/api/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          role: matchedRole?.title || jobTitle,
-          salary: salary ? parseInt(salary) : undefined,
-          workflows: selectedWorkflows.map(w => w.name),
-          potentialSavings: automatableDollars,
-          skillAssessment
-        })
-      })
-      
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Signup failed')
-      }
-      
-      setSignupSent(true)
-    } catch (err) {
-      setSignupError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setSignupLoading(false)
-    }
+
+  const handleStartTrial = () => {
+    // In the future, this will save to database and redirect to dashboard
+    // For now, just show the dashboard
+    router.push('/dashboard')
   }
+
+  // Calculate which skills need the most work
+  const skillPriorities = (Object.keys(skillAssessment) as (keyof SkillAssessment)[])
+    .map(key => ({ key, level: skillAssessment[key] }))
+    .sort((a, b) => {
+      const order = { developing: 0, unsure: 1, intermediate: 2, advanced: 3 }
+      return order[a.level] - order[b.level]
+    })
+    .slice(0, 3)
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -120,99 +138,217 @@ export default function CapturePage() {
       <header className="bg-white border-b">
         <div className="max-w-4xl mx-auto px-6 py-4 flex justify-between items-center">
           <Link href="/" className="text-xl font-bold text-gray-900">WorkStrata</Link>
-          {step === 'results' && <button onClick={() => setShowSignupModal(true)} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium">Save Results</button>}
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span className={step === 'role' ? 'text-primary-600 font-medium' : ''}>1. Role</span>
+            <span>→</span>
+            <span className={step === 'tasks' ? 'text-primary-600 font-medium' : ''}>2. Tasks</span>
+            <span>→</span>
+            <span className={step === 'skills' ? 'text-primary-600 font-medium' : ''}>3. Skills</span>
+            <span>→</span>
+            <span className={step === 'personalization' ? 'text-primary-600 font-medium' : ''}>4. Setup</span>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-2xl mx-auto px-6 py-8">
         
-        {/* STEP 1: Profile */}
-        {step === 'profile' && (
-          <div className="max-w-xl mx-auto">
+        {/* STEP 1: Role Mapping */}
+        {step === 'role' && (
+          <div>
             <div className="text-center mb-8">
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Find your automation opportunities</h1>
-              <p className="text-lg text-gray-600">Enter your role to see where you&apos;re likely losing time to repetitive work.</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-3">Tell us about your role</h1>
+              <p className="text-gray-600">We&apos;ll use this to personalize your AI skills curriculum.</p>
             </div>
-            <form onSubmit={handleProfileSubmit} className="bg-white rounded-2xl shadow-sm border p-8">
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Your job title *</label>
-                <input type="text" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="e.g., Marketing Manager" required className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-primary-500 focus:outline-none text-lg" autoFocus />
+
+            <form onSubmit={handleRoleSubmit} className="space-y-6">
+              <div className="bg-white rounded-xl border p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">What&apos;s your job title? *</label>
+                <input
+                  type="text"
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                  placeholder="e.g., Marketing Manager"
+                  required
+                  className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-primary-500 focus:outline-none"
+                  autoFocus
+                />
               </div>
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Annual salary <span className="font-normal text-gray-400">(for personalized $ calculations)</span></label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">$</span>
-                  <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} placeholder="75,000" className="w-full pl-10 pr-4 py-4 rounded-xl border-2 border-gray-200 focus:border-primary-500 focus:outline-none text-lg" />
+
+              <div className="bg-white rounded-xl border p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">What industry are you in?</label>
+                <div className="flex flex-wrap gap-2">
+                  {industries.map(ind => (
+                    <button
+                      key={ind}
+                      type="button"
+                      onClick={() => setIndustry(ind)}
+                      className={`px-4 py-2 rounded-full text-sm transition ${
+                        industry === ind
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {ind}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <button type="submit" className="w-full bg-primary-600 text-white text-lg py-4 rounded-xl font-semibold hover:bg-primary-700 transition">Analyze My Role →</button>
+
+              <div className="bg-white rounded-xl border p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Company size</label>
+                <div className="flex flex-wrap gap-2">
+                  {companySizes.map(size => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setCompanySize(size)}
+                      className={`px-4 py-2 rounded-full text-sm transition ${
+                        companySize === size
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {size} employees
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">What are your main responsibilities? (select all that apply)</label>
+                <div className="flex flex-wrap gap-2">
+                  {responsibilities.map(resp => (
+                    <button
+                      key={resp}
+                      type="button"
+                      onClick={() => toggleSelection(resp, selectedResponsibilities, setSelectedResponsibilities)}
+                      className={`px-4 py-2 rounded-full text-sm transition ${
+                        selectedResponsibilities.includes(resp)
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {resp}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={!jobTitle}
+                className="w-full bg-primary-600 text-white py-4 rounded-xl font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Continue →
+              </button>
             </form>
-            <div className="mt-8 text-center">
-              <p className="text-sm text-gray-500 mb-3">Or select a role:</p>
-              <div className="flex flex-wrap justify-center gap-2">{roleProfiles.map(role => (<button key={role.id} onClick={() => setJobTitle(role.title)} className="text-sm bg-white border border-gray-200 hover:border-primary-500 hover:text-primary-600 px-4 py-2 rounded-full transition">{role.title}</button>))}</div>
-            </div>
           </div>
         )}
 
-        {/* STEP 2: Workflows */}
-        {step === 'workflows' && (
-          <div className="max-w-2xl mx-auto">
+        {/* STEP 2: Task Inventory */}
+        {step === 'tasks' && (
+          <div>
             <div className="text-center mb-8">
-              <span className="inline-block bg-primary-100 text-primary-700 text-sm font-medium px-4 py-1 rounded-full mb-3">{matchedRole?.title || jobTitle}</span>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Which of these do you do?</h1>
-              <p className="text-gray-600">Select the workflows that are part of your regular work.</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-3">What tasks fill your day?</h1>
+              <p className="text-gray-600">This helps us identify where AI can make the biggest impact.</p>
             </div>
-            {matchedRole ? (
-              <div className="space-y-3">{workflows.map(workflow => (
-                <div key={workflow.id} onClick={() => handleWorkflowToggle(workflow.id)} className={`bg-white rounded-xl p-5 border-2 cursor-pointer transition ${workflow.selected ? 'border-primary-500 shadow-md' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <div className="flex items-start gap-4">
-                    <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition ${workflow.selected ? 'bg-primary-600 border-primary-600' : 'border-gray-300'}`}>
-                      {workflow.selected && <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-gray-900">{workflow.name}</h3>
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${workflow.strataLevel === 1 ? 'bg-red-100 text-red-700' : workflow.strataLevel === 2 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
-                          {workflow.strataLevel === 1 ? '🤖 Automate' : workflow.strataLevel === 2 ? '🤝 AI+You' : '🧠 You'}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500 mt-1">{workflow.description}</p>
-                      <p className="text-xs text-gray-400 mt-2">{workflow.avgHoursPerWeek} hrs/week avg</p>
-                    </div>
-                  </div>
+
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Which tasks take the most time? (select up to 5)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {taskTypes.map(task => (
+                    <button
+                      key={task}
+                      type="button"
+                      onClick={() => {
+                        if (timeConsumingTasks.includes(task) || timeConsumingTasks.length < 5) {
+                          toggleSelection(task, timeConsumingTasks, setTimeConsumingTasks)
+                        }
+                      }}
+                      className={`px-3 py-2 rounded-lg text-sm transition ${
+                        timeConsumingTasks.includes(task)
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {task}
+                    </button>
+                  ))}
                 </div>
-              ))}</div>
-            ) : (
-              <div className="bg-white rounded-xl p-8 text-center border">
-                <p className="text-gray-600 mb-4">We don&apos;t have pre-built workflows for &quot;{jobTitle}&quot; yet.</p>
-                <p className="text-sm text-gray-500 mb-4">Choose a similar role:</p>
-                <div className="flex flex-wrap justify-center gap-2">{roleProfiles.map(role => (<button key={role.id} onClick={() => { setMatchedRole(role); setWorkflows(role.workflows.map(w => ({ ...w, selected: false }))); }} className="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg">{role.title}</button>))}</div>
               </div>
-            )}
-            {selectedWorkflows.length > 0 && (
-              <>
-                <div className="h-28" />
-                <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg">
-                  <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900">{selectedWorkflows.length} workflow{selectedWorkflows.length > 1 ? 's' : ''} selected</p>
-                      <p className="text-sm text-gray-600">{totalHoursPerWeek} hrs/week • <span className="text-green-600 font-semibold">${(totalHoursPerWeek * hourlyRate * 50).toLocaleString()}/year</span> potential</p>
-                    </div>
-                    <button onClick={handleContinueToSkills} className="bg-primary-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-primary-700 transition">Continue →</button>
-                  </div>
+
+              <div className="bg-white rounded-xl border p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Which feel repetitive or tedious?
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {taskTypes.map(task => (
+                    <button
+                      key={task}
+                      type="button"
+                      onClick={() => toggleSelection(task, repetitiveTasks, setRepetitiveTasks)}
+                      className={`px-3 py-2 rounded-lg text-sm transition ${
+                        repetitiveTasks.includes(task)
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {task}
+                    </button>
+                  ))}
                 </div>
-              </>
-            )}
+              </div>
+
+              <div className="bg-white rounded-xl border p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Which require your judgment and creativity?
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {taskTypes.map(task => (
+                    <button
+                      key={task}
+                      type="button"
+                      onClick={() => toggleSelection(task, judgmentTasks, setJudgmentTasks)}
+                      className={`px-3 py-2 rounded-lg text-sm transition ${
+                        judgmentTasks.includes(task)
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {task}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setStep('role')}
+                  className="flex-1 bg-gray-100 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-200 transition"
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={handleTasksSubmit}
+                  disabled={timeConsumingTasks.length === 0}
+                  className="flex-1 bg-primary-600 text-white py-4 rounded-xl font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Continue →
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
         {/* STEP 3: Skills Assessment */}
         {step === 'skills' && (
-          <div className="max-w-2xl mx-auto">
-            {/* Progress indicator */}
+          <div>
             <div className="mb-8">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-600">AI Readiness Assessment</span>
+                <span className="text-sm font-medium text-gray-600">AI Skills Assessment</span>
                 <span className="text-sm text-gray-500">{currentSkillIndex + 1} of {skillQuestions.length}</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -223,7 +359,6 @@ export default function CapturePage() {
               </div>
             </div>
 
-            {/* Current question */}
             {skillQuestions[currentSkillIndex] && (
               <div className="bg-white rounded-2xl border p-8">
                 <div className="mb-6">
@@ -252,17 +387,17 @@ export default function CapturePage() {
 
                 <div className="mt-6 pt-6 border-t flex justify-between items-center">
                   <button 
-                    onClick={handleSkipSkills}
+                    onClick={() => setStep('tasks')}
                     className="text-gray-500 hover:text-gray-700 text-sm"
                   >
-                    Skip assessment →
+                    ← Back to tasks
                   </button>
                   {currentSkillIndex > 0 && (
                     <button 
                       onClick={() => setCurrentSkillIndex(prev => prev - 1)}
                       className="text-primary-600 hover:text-primary-700 text-sm font-medium"
                     >
-                      ← Previous
+                      ← Previous question
                     </button>
                   )}
                 </div>
@@ -271,48 +406,152 @@ export default function CapturePage() {
           </div>
         )}
 
-        {/* STEP 4: Results */}
+        {/* STEP 4: Personalization */}
+        {step === 'personalization' && (
+          <div>
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-3">Almost done! Personalize your experience</h1>
+              <p className="text-gray-600">Help us deliver content that fits your style.</p>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">How do you prefer to learn?</label>
+                <div className="space-y-2">
+                  {learningPreferences.map(pref => (
+                    <button
+                      key={pref.id}
+                      type="button"
+                      onClick={() => setLearningPreference(pref.id)}
+                      className={`w-full text-left p-4 rounded-xl border-2 transition ${
+                        learningPreference === pref.id
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="font-medium text-gray-900">{pref.label}</span>
+                      <span className="text-gray-500 text-sm ml-2">— {pref.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">When should we send your daily content?</label>
+                <div className="space-y-2">
+                  {emailTimes.map(time => (
+                    <button
+                      key={time.id}
+                      type="button"
+                      onClick={() => setEmailTime(time.id)}
+                      className={`w-full text-left p-4 rounded-xl border-2 transition ${
+                        emailTime === time.id
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="font-medium text-gray-900">{time.label}</span>
+                      <span className="text-gray-500 text-sm ml-2">— {time.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-3">What&apos;s your first priority?</label>
+                <div className="space-y-2">
+                  {skillPriorities.map((skill, idx) => (
+                    <button
+                      key={skill.key}
+                      type="button"
+                      onClick={() => setFocusArea(skill.key)}
+                      className={`w-full text-left p-4 rounded-xl border-2 transition ${
+                        focusArea === skill.key
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900">{skillLabels[skill.key]}</span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${levelLabels[skill.level].color}`}>
+                          {levelLabels[skill.level].label}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {idx === 0 ? 'Biggest opportunity for growth' : idx === 1 ? 'Second priority' : 'Third priority'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setCurrentSkillIndex(skillQuestions.length - 1)
+                    setStep('skills')
+                  }}
+                  className="flex-1 bg-gray-100 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-200 transition"
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={handlePersonalizationSubmit}
+                  className="flex-1 bg-primary-600 text-white py-4 rounded-xl font-semibold hover:bg-primary-700 transition"
+                >
+                  See My Results →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 5: Results / Trial Start */}
         {step === 'results' && (
           <div>
-            {/* Hero Metrics */}
-            <div className="bg-gradient-to-br from-primary-600 to-primary-700 rounded-3xl p-8 text-white mb-8">
-              <div className="flex items-center gap-2 mb-6">
-                <span className="bg-white/20 text-sm font-medium px-3 py-1 rounded-full">{matchedRole?.title || jobTitle}</span>
-                <span className="bg-white/20 text-sm px-3 py-1 rounded-full">${hourlyRate}/hr</span>
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-10 h-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
               </div>
-              
-              <div className="grid md:grid-cols-3 gap-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-3">Your AI Skills Profile</h1>
+              <p className="text-gray-600">Here&apos;s where you stand — and where we&apos;ll help you grow.</p>
+            </div>
+
+            {/* Readiness Score */}
+            <div className="bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl p-6 text-white mb-6">
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-primary-200 text-sm font-medium mb-1">TIME YOU CAN RECLAIM</p>
-                  <p className="text-5xl font-bold mb-1">{automatableHours}<span className="text-2xl font-normal opacity-80"> hrs/week</span></p>
-                  <p className="text-primary-200">{totalHoursPerWeek > 0 ? Math.round(automatableHours / totalHoursPerWeek * 100) : 0}% of your selected work</p>
+                  <p className="text-primary-200 text-sm font-medium mb-1">AI READINESS SCORE</p>
+                  <p className="text-5xl font-bold">{readinessScore}%</p>
                 </div>
-                <div>
-                  <p className="text-primary-200 text-sm font-medium mb-1">ANNUAL VALUE</p>
-                  <p className="text-5xl font-bold mb-1">${Math.round(automatableDollars / 1000)}K</p>
-                  <p className="text-primary-200">{automatableHours * 50} hours back per year</p>
-                </div>
-                <div>
-                  <p className="text-primary-200 text-sm font-medium mb-1">AI READINESS</p>
-                  <p className="text-5xl font-bold mb-1">{readinessScore}<span className="text-2xl font-normal opacity-80">%</span></p>
-                  <p className="text-primary-200">Based on 6 core skills</p>
+                <div className="text-right">
+                  <p className="text-primary-200 text-sm">Based on 6 core skills</p>
+                  <p className="text-primary-100 text-sm mt-1">
+                    {readinessScore < 40 ? 'Room to grow — let\'s fix that!' : 
+                     readinessScore < 70 ? 'Good foundation — time to level up' : 
+                     'Strong skills — optimize further'}
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Skills Summary */}
-            <div className="bg-white rounded-2xl border p-6 mb-6">
-              <h2 className="font-bold text-gray-900 mb-4">Your AI Skills Profile</h2>
-              <p className="text-gray-600 text-sm mb-6">How ready you are to succeed with AI automation</p>
-              
-              <div className="grid md:grid-cols-2 gap-4">
+            {/* Skills Breakdown */}
+            <div className="bg-white rounded-xl border p-6 mb-6">
+              <h2 className="font-bold text-gray-900 mb-4">Your Skill Profile</h2>
+              <div className="space-y-4">
                 {(Object.keys(skillAssessment) as (keyof SkillAssessment)[]).map(skillKey => {
                   const level = skillAssessment[skillKey]
                   const levelInfo = levelLabels[level]
+                  const isFocus = focusArea === skillKey
                   return (
-                    <div key={skillKey} className="border rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-gray-900">{skillLabels[skillKey]}</span>
+                    <div key={skillKey} className={`p-4 rounded-lg border-2 ${isFocus ? 'border-primary-500 bg-primary-50' : 'border-gray-100'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">{skillLabels[skillKey]}</span>
+                          {isFocus && <span className="text-xs bg-primary-600 text-white px-2 py-0.5 rounded-full">Your focus</span>}
+                        </div>
                         <span className={`text-xs font-medium px-2 py-1 rounded-full ${levelInfo.color}`}>
                           {levelInfo.label}
                         </span>
@@ -324,95 +563,56 @@ export default function CapturePage() {
               </div>
             </div>
 
-            {/* Automation Roadmap */}
-            <div className="bg-white rounded-2xl border p-6 mb-6">
-              <h2 className="font-bold text-gray-900 mb-4">Your Automation Roadmap</h2>
-              <p className="text-gray-600 text-sm mb-6">Ranked by potential impact. Start with #1 for quickest wins.</p>
+            {/* Your Plan */}
+            <div className="bg-white rounded-xl border p-6 mb-6">
+              <h2 className="font-bold text-gray-900 mb-2">Your Personalized Plan</h2>
+              <p className="text-gray-600 text-sm mb-4">Based on your profile as a <strong>{jobTitle}</strong> in <strong>{industry || 'your industry'}</strong></p>
               
-              <div className="space-y-4">
-                {automatableWorkflows
-                  .sort((a, b) => ((b.customHours ?? b.avgHoursPerWeek) * hourlyRate) - ((a.customHours ?? a.avgHoursPerWeek) * hourlyRate))
-                  .map((workflow, idx) => {
-                    const hours = workflow.customHours ?? workflow.avgHoursPerWeek
-                    const value = hours * hourlyRate * 50
-                    return (
-                      <div key={workflow.id} className="border-2 border-gray-100 rounded-xl p-5 hover:border-gray-200 transition">
-                        <div className="flex items-start gap-4">
-                          <div className="w-10 h-10 bg-primary-100 text-primary-700 rounded-xl flex items-center justify-center font-bold text-lg flex-shrink-0">
-                            {idx + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-4 mb-2">
-                              <h3 className="font-semibold text-gray-900">{workflow.name}</h3>
-                              <span className="text-green-600 font-bold whitespace-nowrap">${value.toLocaleString()}/yr</span>
-                            </div>
-                            <p className="text-sm text-gray-500 mb-3">{hours} hrs/week • {workflow.strataLevel === 1 ? 'Fully automatable' : 'AI can assist'}</p>
-                            
-                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                              <p className="text-sm font-semibold text-amber-800 mb-1">⚡ Quick Win</p>
-                              <p className="text-sm text-amber-900">{workflow.quickWin}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-bold">1</div>
+                  <div>
+                    <p className="font-medium text-gray-900">Focus: {focusArea ? skillLabels[focusArea as keyof SkillAssessment] : 'AI Skills'}</p>
+                    <p className="text-sm text-gray-500">Your starting skill area</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-bold">2</div>
+                  <div>
+                    <p className="font-medium text-gray-900">{learningPreference === 'video' ? 'Video-first' : learningPreference === 'text' ? 'Article-first' : 'Mixed'} content</p>
+                    <p className="text-sm text-gray-500">Matched to how you learn best</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-bold">3</div>
+                  <div>
+                    <p className="font-medium text-gray-900">{emailTime === 'morning' ? 'Morning' : emailTime === 'lunch' ? 'Midday' : 'Evening'} delivery</p>
+                    <p className="text-sm text-gray-500">Daily content when you want it</p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Final CTA */}
-            <div className="bg-white rounded-2xl border p-8 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Ready to reclaim {automatableHours} hours every week?</h2>
-              <p className="text-gray-600 mb-6">Save your roadmap and get step-by-step implementation guides.</p>
-              <button onClick={() => setShowSignupModal(true)} className="bg-primary-600 text-white text-lg px-8 py-4 rounded-xl font-semibold hover:bg-primary-700 transition">Save My ${automatableDollars.toLocaleString()}/Year Roadmap →</button>
-              <p className="text-sm text-gray-500 mt-4">Free forever • No credit card required</p>
+            {/* Trial CTA */}
+            <div className="bg-primary-50 rounded-xl border-2 border-primary-200 p-6 text-center">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Your 7-Day Free Trial Starts Now</h2>
+              <p className="text-gray-600 mb-6">
+                Full access to daily content, experiments, and progress tracking.
+                No credit card required.
+              </p>
+              <button
+                onClick={handleStartTrial}
+                className="w-full bg-primary-600 text-white py-4 rounded-xl font-semibold hover:bg-primary-700 transition text-lg"
+              >
+                Start My Trial →
+              </button>
+              <p className="text-sm text-gray-500 mt-4">
+                Cancel anytime. Upgrade to Pro ($29/mo) when you&apos;re ready.
+              </p>
             </div>
           </div>
         )}
       </div>
-
-      {/* Signup Modal */}
-      {showSignupModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 relative">
-            <button onClick={() => setShowSignupModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl">×</button>
-            {signupSent ? (
-              <div className="text-center py-4">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                </div>
-                <h3 className="text-xl font-bold mb-2">Roadmap saved!</h3>
-                <p className="text-gray-600 mb-4">We&apos;ve saved your ${automatableDollars.toLocaleString()}/year automation roadmap to <strong>{email}</strong></p>
-                
-                {/* Pro upgrade placeholder */}
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <p className="text-sm font-semibold text-gray-700 mb-3">Want step-by-step implementation guides?</p>
-                  <button 
-                    onClick={() => alert('Stripe checkout will open here')}
-                    className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white py-3 rounded-xl font-semibold hover:from-primary-700 hover:to-primary-800 transition"
-                  >
-                    Upgrade to Pro - $29/mo
-                  </button>
-                  <p className="text-xs text-gray-500 mt-2">Unlimited assessments + premium guides + priority support</p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <h3 className="text-2xl font-bold mb-2">Save your ${automatableDollars.toLocaleString()}/year roadmap</h3>
-                <p className="text-gray-600 mb-6">Create a free account to save your results and get implementation guides.</p>
-                <form onSubmit={handleSignup}>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" required className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 mb-4 text-lg" disabled={signupLoading} />
-                  {signupError && <p className="text-red-600 text-sm mb-4">{signupError}</p>}
-                  <button type="submit" disabled={signupLoading} className="w-full bg-primary-600 text-white py-4 rounded-xl hover:bg-primary-700 transition font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                    {signupLoading ? 'Saving...' : 'Save My Roadmap →'}
-                  </button>
-                </form>
-                <p className="text-center text-sm text-gray-500 mt-4">Free forever • No credit card required</p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </main>
   )
 }

@@ -161,7 +161,10 @@ export default function DashboardPage() {
               <div className="p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">{todayContent.title}</h3>
                 <p className="text-gray-600 mb-4">{todayContent.preview}</p>
-                <button className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition">
+                <button 
+                  onClick={() => alert('Learning content coming soon! This will link to curated articles and videos.')}
+                  className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition"
+                >
                   Start Learning →
                 </button>
               </div>
@@ -181,10 +184,16 @@ export default function DashboardPage() {
               <div className="p-6">
                 <p className="text-gray-600 mb-4">{todayContent.experiment.description}</p>
                 <div className="flex gap-3">
-                  <button className="bg-amber-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-amber-600 transition">
+                  <button 
+                    onClick={() => alert('Experiment template coming soon! This will open a guided workflow for this experiment.')}
+                    className="bg-amber-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-amber-600 transition"
+                  >
                     Start Experiment
                   </button>
-                  <button className="text-gray-600 px-4 py-3 rounded-lg font-medium hover:bg-gray-100 transition">
+                  <button 
+                    onClick={() => alert('Marked complete! (In production, this will save to your profile)')}
+                    className="text-gray-600 px-4 py-3 rounded-lg font-medium hover:bg-gray-100 transition"
+                  >
                     Mark Complete
                   </button>
                 </div>

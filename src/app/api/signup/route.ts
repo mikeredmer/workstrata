@@ -32,14 +32,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Try to insert/upsert into signups table
+    // Convert arrays to comma-separated strings for TEXT columns
     const { data, error } = await supabase
       .from('signups')
       .upsert({
         email: email.toLowerCase(),
         role: role || null,
         salary: salary || null,
-        workflows: workflows || null,
-        tools: tools || null,
+        workflows: workflows?.join(', ') || null,
+        tools: tools?.join(', ') || null,
         potential_savings: potentialSavings || null
       }, {
         onConflict: 'email',

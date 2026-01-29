@@ -99,7 +99,7 @@ export default function SignupPage() {
                 disabled={loading}
                 className="w-full bg-primary-600 text-white py-4 rounded-xl font-semibold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Sending...' : 'Start Free Trial'}
+                {loading ? 'Sending...' : 'Start Free Assessment'}
               </button>
               
               <p className="text-xs text-gray-500 text-center mt-4">

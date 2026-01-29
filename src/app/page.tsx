@@ -273,7 +273,7 @@ export default function LandingPage() {
                 href="/auth/signup"
                 className="block w-full text-center bg-gray-100 text-gray-900 px-6 py-3 rounded-lg hover:bg-gray-200 transition font-medium"
               >
-                Start Free Trial
+                Start Free Assessment
               </Link>
             </div>
 

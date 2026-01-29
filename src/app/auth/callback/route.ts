@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
+  const onboarding = requestUrl.searchParams.get('onboarding')
   
   if (code) {
     const supabase = createClient(
@@ -14,6 +15,11 @@ export async function GET(request: NextRequest) {
     await supabase.auth.exchangeCodeForSession(code)
   }
 
-  // Redirect to dashboard after successful auth
+  // If coming from signup, redirect to onboarding/assessment
+  if (onboarding === 'true') {
+    return NextResponse.redirect(new URL('/capture', request.url))
+  }
+
+  // Otherwise redirect to dashboard
   return NextResponse.redirect(new URL('/dashboard', request.url))
 }

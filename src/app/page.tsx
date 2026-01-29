@@ -32,7 +32,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
           <span className="text-xl font-bold text-gray-900">WorkStrata</span>
           <Link 
-            href="/capture" 
+            href="/auth/signup" 
             className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition"
           >
             Start Free Assessment
@@ -50,7 +50,7 @@ export default function LandingPage() {
             Free assessment reveals your AI skill gaps. Daily content + experiments close them. 15 minutes a day.
           </p>
           <Link 
-            href="/capture"
+            href="/auth/signup"
             className="inline-block bg-primary-600 text-white text-lg px-8 py-4 rounded-xl hover:bg-primary-700 transition shadow-lg hover:shadow-xl"
           >
             Start Free Assessment →
@@ -270,7 +270,7 @@ export default function LandingPage() {
                 </li>
               </ul>
               <Link 
-                href="/capture"
+                href="/auth/signup"
                 className="block w-full text-center bg-gray-100 text-gray-900 px-6 py-3 rounded-lg hover:bg-gray-200 transition font-medium"
               >
                 Start Free Trial
@@ -417,7 +417,7 @@ export default function LandingPage() {
             Free assessment. 7-day trial. Cancel anytime.
           </p>
           <Link 
-            href="/capture"
+            href="/auth/signup"
             className="inline-block bg-white text-primary-600 text-lg px-8 py-4 rounded-xl hover:bg-gray-100 transition shadow-lg font-semibold"
           >
             Start Free Assessment →

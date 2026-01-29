@@ -376,9 +376,12 @@ export default function CapturePage() {
                 <div className="space-y-3">
                   {skillQuestions[currentSkillIndex].options.map((option, idx) => (
                     <button
-                      key={idx}
-                      onClick={() => handleSkillAnswer(option.level)}
-                      className="w-full text-left p-4 rounded-xl border-2 border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition"
+                      key={`${currentSkillIndex}-${idx}`}
+                      onClick={(e) => {
+                        (e.target as HTMLButtonElement).blur()
+                        handleSkillAnswer(option.level)
+                      }}
+                      className="w-full text-left p-4 rounded-xl border-2 border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition focus:outline-none active:bg-primary-100"
                     >
                       <span className="text-gray-900">{option.text}</span>
                     </button>

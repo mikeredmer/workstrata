@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import WaitlistForm from '@/components/WaitlistForm'
 
 function FAQItem({ question, answer }: { question: string; answer: string }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -49,13 +50,7 @@ export default function LandingPage() {
           <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-2xl mx-auto">
             Free assessment reveals your AI skill gaps. Daily content + experiments close them. 15 minutes a day.
           </p>
-          <Link 
-            href="/auth/signup"
-            className="inline-block bg-primary-600 text-white text-lg px-8 py-4 rounded-xl hover:bg-primary-700 transition shadow-lg hover:shadow-xl"
-          >
-            Start Free Assessment →
-          </Link>
-          <p className="mt-4 text-sm text-gray-500">7-day free trial. No credit card required.</p>
+          <WaitlistForm />
         </div>
       </section>
 

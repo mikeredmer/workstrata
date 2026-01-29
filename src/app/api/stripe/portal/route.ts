@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16'
-})
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY not configured')
+  }
+  return new Stripe(process.env.STRIPE_SECRET_KEY)
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,6 +20,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return NextResponse.json(
+        { error: 'Stripe not configured' },
+        { status: 500 }
+      )
+    }
+
+    const stripe = getStripe()
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
       return_url: returnUrl || `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`

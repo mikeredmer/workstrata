@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16'
-})
-
-const PRICE_ID = process.env.STRIPE_PRICE_ID! // $29/mo Pro plan
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY not configured')
+  }
+  return new Stripe(process.env.STRIPE_SECRET_KEY)
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +20,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const stripe = getStripe()
+
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -26,7 +29,7 @@ export async function POST(request: NextRequest) {
       customer_email: email,
       line_items: [
         {
-          price: PRICE_ID,
+          price: process.env.STRIPE_PRICE_ID,
           quantity: 1
         }
       ],

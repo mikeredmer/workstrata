@@ -4,31 +4,10 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { getProfile, calculateTrialStatus, updateStreak, type Profile } from '@/lib/profiles'
 import { skillLabels, levelLabels, type SkillAssessment } from '@/data/skills-assessment'
 
-// Mock data for now - will be replaced with real data from Supabase
-const mockUserData = {
-  name: 'User',
-  trialStarted: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-  trialEnds: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
-  currentStreak: 2,
-  role: 'Product Manager',
-  industry: 'Technology',
-  focusArea: 'contextAssembly',
-  learningPreference: 'mixed',
-  skillAssessment: {
-    contextAssembly: 'developing',
-    qualityJudgment: 'intermediate',
-    taskDecomposition: 'developing',
-    iterativeRefinement: 'intermediate',
-    workflowIntegration: 'developing',
-    frontierRecognition: 'unsure'
-  } as SkillAssessment,
-  completedExperiments: 3,
-  totalExperiments: 42
-}
-
-// Mock content for today
+// Mock content for today (will be dynamic later)
 const todayContent = {
   skill: 'Context Assembly',
   title: 'The 3-Part Context Formula',
@@ -43,22 +22,42 @@ const todayContent = {
 }
 
 export default function DashboardPage() {
-  const { user, loading, signOut } = useAuth()
+  const { user, loading: authLoading, signOut } = useAuth()
   const router = useRouter()
-  const [userData] = useState(mockUserData)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push('/auth/login')
+      return
     }
-  }, [user, loading, router])
+
+    if (user) {
+      loadProfile()
+    }
+  }, [user, authLoading, router])
+
+  const loadProfile = async () => {
+    if (!user) return
+
+    setLoading(true)
+    const profileData = await getProfile(user.id)
+    setProfile(profileData)
+    setLoading(false)
+
+    // Update streak on page load
+    if (profileData?.onboarding_completed_at) {
+      await updateStreak(user.id)
+    }
+  }
 
   const handleSignOut = async () => {
     await signOut()
     router.push('/')
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <main className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-500">Loading...</div>
@@ -70,17 +69,27 @@ export default function DashboardPage() {
     return null
   }
 
-  // Calculate trial days
-  const now = new Date()
-  const trialDaysLeft = Math.max(0, Math.ceil((userData.trialEnds.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-  const trialDayNumber = 7 - trialDaysLeft + 1
-  const trialProgress = ((7 - trialDaysLeft) / 7) * 100
+  // If user hasn't completed onboarding, redirect to capture
+  if (profile && !profile.onboarding_completed_at) {
+    router.push('/capture')
+    return null
+  }
 
-  // Calculate readiness score
-  const levelScores: Record<string, number> = { developing: 25, unsure: 25, intermediate: 60, advanced: 100 }
-  const readinessScore = Math.round(
-    Object.values(userData.skillAssessment).reduce((sum, level) => sum + (levelScores[level] || 25), 0) / 6
-  )
+  // Calculate trial status
+  const trialStatus = profile ? calculateTrialStatus(profile) : { isInTrial: true, trialExpired: false, daysLeft: 7, dayNumber: 1 }
+  const trialProgress = ((7 - trialStatus.daysLeft) / 7) * 100
+
+  // Calculate readiness score from profile
+  const skillAssessment = (profile?.skill_assessment as SkillAssessment) || {
+    contextAssembly: 'developing',
+    qualityJudgment: 'developing',
+    taskDecomposition: 'developing',
+    iterativeRefinement: 'developing',
+    workflowIntegration: 'developing',
+    frontierRecognition: 'developing'
+  }
+
+  const readinessScore = profile?.ai_readiness_score || 25
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -90,7 +99,7 @@ export default function DashboardPage() {
           <Link href="/" className="text-xl font-bold text-gray-900">WorkStrata</Link>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">{user.email}</span>
-            <button 
+            <button
               onClick={handleSignOut}
               className="text-sm text-gray-500 hover:text-gray-700"
             >
@@ -101,35 +110,51 @@ export default function DashboardPage() {
       </header>
 
       {/* Trial Banner */}
-      <div className="bg-primary-600 text-white">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span className="font-medium">Day {trialDayNumber} of 7</span>
-            <div className="w-32 h-2 bg-primary-400 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-white transition-all"
-                style={{ width: `${trialProgress}%` }}
-              />
+      {trialStatus.isInTrial && (
+        <div className="bg-primary-600 text-white">
+          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="font-medium">Day {trialStatus.dayNumber} of 7</span>
+              <div className="w-32 h-2 bg-primary-400 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white transition-all"
+                  style={{ width: `${trialProgress}%` }}
+                />
+              </div>
+              <span className="text-primary-200 text-sm">{trialStatus.daysLeft} days left in trial</span>
             </div>
-            <span className="text-primary-200 text-sm">{trialDaysLeft} days left in trial</span>
+            <button className="text-sm bg-white/20 hover:bg-white/30 px-4 py-1.5 rounded-lg transition">
+              Upgrade to Pro
+            </button>
           </div>
-          <button className="text-sm bg-white/20 hover:bg-white/30 px-4 py-1.5 rounded-lg transition">
-            Upgrade to Pro
-          </button>
         </div>
-      </div>
+      )}
+
+      {/* Trial Expired Banner */}
+      {trialStatus.trialExpired && (
+        <div className="bg-amber-500 text-white">
+          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+            <span className="font-medium">Your trial has ended. Upgrade to continue learning.</span>
+            <button className="text-sm bg-white text-amber-600 px-4 py-1.5 rounded-lg font-medium hover:bg-gray-100 transition">
+              Upgrade Now
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Welcome + Stats */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back!</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Welcome back{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}!
+          </h1>
           <p className="text-gray-600">Keep your streak going — you&apos;re building real AI skills.</p>
         </div>
 
         <div className="grid md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-xl border p-5">
             <p className="text-sm text-gray-500 mb-1">Current Streak</p>
-            <p className="text-3xl font-bold text-primary-600">{userData.currentStreak} days</p>
+            <p className="text-3xl font-bold text-primary-600">{profile?.current_streak || 0} days</p>
           </div>
           <div className="bg-white rounded-xl border p-5">
             <p className="text-sm text-gray-500 mb-1">AI Readiness</p>
@@ -137,11 +162,13 @@ export default function DashboardPage() {
           </div>
           <div className="bg-white rounded-xl border p-5">
             <p className="text-sm text-gray-500 mb-1">Experiments Done</p>
-            <p className="text-3xl font-bold text-gray-900">{userData.completedExperiments}</p>
+            <p className="text-3xl font-bold text-gray-900">{profile?.completed_experiments?.length || 0}</p>
           </div>
           <div className="bg-white rounded-xl border p-5">
             <p className="text-sm text-gray-500 mb-1">Focus Area</p>
-            <p className="text-lg font-bold text-gray-900">{skillLabels[userData.focusArea as keyof SkillAssessment]}</p>
+            <p className="text-lg font-bold text-gray-900">
+              {profile?.focus_area ? skillLabels[profile.focus_area as keyof SkillAssessment] : 'Not set'}
+            </p>
           </div>
         </div>
 
@@ -161,7 +188,7 @@ export default function DashboardPage() {
               <div className="p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">{todayContent.title}</h3>
                 <p className="text-gray-600 mb-4">{todayContent.preview}</p>
-                <button 
+                <button
                   onClick={() => alert('Learning content coming soon! This will link to curated articles and videos.')}
                   className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition"
                 >
@@ -184,13 +211,13 @@ export default function DashboardPage() {
               <div className="p-6">
                 <p className="text-gray-600 mb-4">{todayContent.experiment.description}</p>
                 <div className="flex gap-3">
-                  <button 
+                  <button
                     onClick={() => alert('Experiment template coming soon! This will open a guided workflow for this experiment.')}
                     className="bg-amber-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-amber-600 transition"
                   >
                     Start Experiment
                   </button>
-                  <button 
+                  <button
                     onClick={() => alert('Marked complete! (In production, this will save to your profile)')}
                     className="text-gray-600 px-4 py-3 rounded-lg font-medium hover:bg-gray-100 transition"
                   >
@@ -199,6 +226,35 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+
+            {/* Profile Summary */}
+            {profile && (
+              <div className="bg-white rounded-xl border p-6">
+                <h2 className="font-bold text-gray-900 mb-4">Your Profile</h2>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Role:</span>
+                    <span className="ml-2 text-gray-900">{profile.job_title || 'Not set'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Industry:</span>
+                    <span className="ml-2 text-gray-900">{profile.industry || 'Not set'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Company Size:</span>
+                    <span className="ml-2 text-gray-900">{profile.company_size ? `${profile.company_size} employees` : 'Not set'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Learning Style:</span>
+                    <span className="ml-2 text-gray-900">
+                      {profile.learning_preference === 'video' ? 'Video-first' :
+                       profile.learning_preference === 'text' ? 'Article-first' :
+                       profile.learning_preference === 'mixed' ? 'Mixed' : 'Not set'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Skill Profile Sidebar */}
@@ -206,11 +262,11 @@ export default function DashboardPage() {
             <div className="bg-white rounded-xl border p-6">
               <h2 className="font-bold text-gray-900 mb-4">Your Skill Profile</h2>
               <div className="space-y-3">
-                {(Object.keys(userData.skillAssessment) as (keyof SkillAssessment)[]).map(skillKey => {
-                  const level = userData.skillAssessment[skillKey]
+                {(Object.keys(skillAssessment) as (keyof SkillAssessment)[]).map(skillKey => {
+                  const level = skillAssessment[skillKey]
                   const levelInfo = levelLabels[level]
-                  const isFocus = userData.focusArea === skillKey
-                  
+                  const isFocus = profile?.focus_area === skillKey
+
                   return (
                     <div key={skillKey} className={`flex items-center justify-between p-2 rounded-lg ${isFocus ? 'bg-primary-50' : ''}`}>
                       <div className="flex items-center gap-2">
@@ -226,7 +282,7 @@ export default function DashboardPage() {
                   )
                 })}
               </div>
-              <Link 
+              <Link
                 href="/capture"
                 className="block text-center text-sm text-primary-600 font-medium mt-4 hover:underline"
               >
@@ -241,22 +297,22 @@ export default function DashboardPage() {
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-600">Experiments</span>
-                    <span className="font-medium">{userData.completedExperiments}/{userData.totalExperiments}</span>
+                    <span className="font-medium">{profile?.completed_experiments?.length || 0}/42</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-green-500"
-                      style={{ width: `${(userData.completedExperiments / userData.totalExperiments) * 100}%` }}
+                      style={{ width: `${((profile?.completed_experiments?.length || 0) / 42) * 100}%` }}
                     />
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-600">Trial Progress</span>
-                    <span className="font-medium">Day {trialDayNumber}/7</span>
+                    <span className="font-medium">Day {trialStatus.dayNumber}/7</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-primary-500"
                       style={{ width: `${trialProgress}%` }}
                     />
@@ -293,7 +349,7 @@ export default function DashboardPage() {
               <h2 className="text-2xl font-bold mb-2">Love what you&apos;re learning?</h2>
               <p className="text-primary-100">Upgrade to Pro for unlimited access, all experiments, and monthly re-assessments.</p>
             </div>
-            <button 
+            <button
               onClick={() => alert('Stripe checkout coming soon!')}
               className="bg-white text-primary-600 px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition flex-shrink-0"
             >

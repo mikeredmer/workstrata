@@ -4,11 +4,13 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { skillQuestions, skillLabels, levelLabels, questionToSkillKey, calculateReadinessScore, getSkillTip, type SkillAssessment } from '@/data/skills-assessment'
+import { useAuth } from '@/contexts/AuthContext'
+import { saveOnboardingData } from '@/lib/profiles'
 
 type Step = 'role' | 'tasks' | 'skills' | 'personalization' | 'results'
 
 const industries = [
-  'Technology', 'Finance', 'Healthcare', 'Marketing', 'Sales', 
+  'Technology', 'Finance', 'Healthcare', 'Marketing', 'Sales',
   'Consulting', 'Education', 'Legal', 'HR', 'Operations', 'Other'
 ]
 
@@ -55,23 +57,26 @@ const defaultSkillAssessment: SkillAssessment = {
 
 export default function CapturePage() {
   const router = useRouter()
+  const { user } = useAuth()
   const [step, setStep] = useState<Step>('role')
-  
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+
   // Role mapping
   const [jobTitle, setJobTitle] = useState('')
   const [industry, setIndustry] = useState('')
   const [companySize, setCompanySize] = useState('')
   const [selectedResponsibilities, setSelectedResponsibilities] = useState<string[]>([])
-  
+
   // Task inventory
   const [timeConsumingTasks, setTimeConsumingTasks] = useState<string[]>([])
   const [repetitiveTasks, setRepetitiveTasks] = useState<string[]>([])
   const [judgmentTasks, setJudgmentTasks] = useState<string[]>([])
-  
+
   // Skills
   const [skillAssessment, setSkillAssessment] = useState<SkillAssessment>(defaultSkillAssessment)
   const [currentSkillIndex, setCurrentSkillIndex] = useState(0)
-  
+
   // Personalization
   const [learningPreference, setLearningPreference] = useState('')
   const [emailTime, setEmailTime] = useState('')
@@ -100,12 +105,12 @@ export default function CapturePage() {
   const handleSkillAnswer = (level: 'developing' | 'intermediate' | 'advanced' | 'unsure') => {
     const currentQuestion = skillQuestions[currentSkillIndex]
     const skillKey = questionToSkillKey[currentQuestion.id]
-    
+
     setSkillAssessment(prev => ({
       ...prev,
       [skillKey]: level
     }))
-    
+
     if (currentSkillIndex < skillQuestions.length - 1) {
       setCurrentSkillIndex(prev => prev + 1)
     } else {
@@ -117,10 +122,38 @@ export default function CapturePage() {
     setStep('results')
   }
 
-  const handleStartTrial = () => {
-    // In the future, this will save to database and redirect to dashboard
-    // For now, just show the dashboard
-    router.push('/dashboard')
+  const handleStartTrial = async () => {
+    if (!user) {
+      // If not logged in, redirect to signup
+      router.push('/auth/signup')
+      return
+    }
+
+    setSaving(true)
+    setSaveError('')
+
+    const result = await saveOnboardingData(user.id, {
+      jobTitle,
+      industry,
+      companySize,
+      responsibilities: selectedResponsibilities,
+      timeConsumingTasks,
+      repetitiveTasks,
+      judgmentTasks,
+      skillAssessment,
+      aiReadinessScore: readinessScore,
+      learningPreference,
+      emailTime,
+      focusArea
+    })
+
+    setSaving(false)
+
+    if (result.success) {
+      router.push('/dashboard')
+    } else {
+      setSaveError(result.error || 'Failed to save. Please try again.')
+    }
   }
 
   // Calculate which skills need the most work
@@ -151,7 +184,7 @@ export default function CapturePage() {
       </header>
 
       <div className="max-w-2xl mx-auto px-6 py-8">
-        
+
         {/* STEP 1: Role Mapping */}
         {step === 'role' && (
           <div>
@@ -352,7 +385,7 @@ export default function CapturePage() {
                 <span className="text-sm text-gray-500">{currentSkillIndex + 1} of {skillQuestions.length}</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-primary-600 transition-all duration-300"
                   style={{ width: `${((currentSkillIndex + 1) / skillQuestions.length) * 100}%` }}
                 />
@@ -389,14 +422,14 @@ export default function CapturePage() {
                 </div>
 
                 <div className="mt-6 pt-6 border-t flex justify-between items-center">
-                  <button 
+                  <button
                     onClick={() => setStep('tasks')}
                     className="text-gray-500 hover:text-gray-700 text-sm"
                   >
                     ← Back to tasks
                   </button>
                   {currentSkillIndex > 0 && (
-                    <button 
+                    <button
                       onClick={() => setCurrentSkillIndex(prev => prev - 1)}
                       className="text-primary-600 hover:text-primary-700 text-sm font-medium"
                     >
@@ -532,8 +565,8 @@ export default function CapturePage() {
                 <div className="text-right">
                   <p className="text-primary-200 text-sm">Based on 6 core skills</p>
                   <p className="text-primary-100 text-sm mt-1">
-                    {readinessScore < 40 ? 'Room to grow — let\'s fix that!' : 
-                     readinessScore < 70 ? 'Good foundation — time to level up' : 
+                    {readinessScore < 40 ? 'Room to grow — let\'s fix that!' :
+                     readinessScore < 70 ? 'Good foundation — time to level up' :
                      'Strong skills — optimize further'}
                   </p>
                 </div>
@@ -570,7 +603,7 @@ export default function CapturePage() {
             <div className="bg-white rounded-xl border p-6 mb-6">
               <h2 className="font-bold text-gray-900 mb-2">Your Personalized Plan</h2>
               <p className="text-gray-600 text-sm mb-4">Based on your profile as a <strong>{jobTitle}</strong> in <strong>{industry || 'your industry'}</strong></p>
-              
+
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                   <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-bold">1</div>
@@ -603,11 +636,17 @@ export default function CapturePage() {
                 Full access to daily content, experiments, and progress tracking.
                 No credit card required.
               </p>
+              {saveError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {saveError}
+                </div>
+              )}
               <button
                 onClick={handleStartTrial}
-                className="w-full bg-primary-600 text-white py-4 rounded-xl font-semibold hover:bg-primary-700 transition text-lg"
+                disabled={saving}
+                className="w-full bg-primary-600 text-white py-4 rounded-xl font-semibold hover:bg-primary-700 transition text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Start My Trial →
+                {saving ? 'Saving...' : 'Start My Trial →'}
               </button>
               <p className="text-sm text-gray-500 mt-4">
                 Cancel anytime. Upgrade to Pro ($29/mo) when you&apos;re ready.

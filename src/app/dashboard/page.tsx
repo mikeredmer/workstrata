@@ -6,20 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { getProfile, calculateTrialStatus, updateStreak, type Profile } from '@/lib/profiles'
 import { skillLabels, levelLabels, type SkillAssessment } from '@/data/skills-assessment'
-
-// Mock content for today (will be dynamic later)
-const todayContent = {
-  skill: 'Context Assembly',
-  title: 'The 3-Part Context Formula',
-  type: 'article',
-  duration: '8 min read',
-  preview: 'Learn the exact framework for giving AI the context it needs to produce great output on the first try.',
-  experiment: {
-    title: 'Rewrite a recent email request',
-    description: 'Take an email you sent to AI in the last week. Apply the 3-part context formula and compare the results.',
-    timeEstimate: '10 min'
-  }
-}
+import { getDayContent, type DailyContent } from '@/data/curriculum'
 
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -78,6 +65,9 @@ export default function DashboardPage() {
   // Calculate trial status
   const trialStatus = profile ? calculateTrialStatus(profile) : { isInTrial: true, trialExpired: false, daysLeft: 7, dayNumber: 1 }
   const trialProgress = ((7 - trialStatus.daysLeft) / 7) * 100
+
+  // Get today's content based on trial day
+  const todayContent = getDayContent(trialStatus.dayNumber) || getDayContent(1)!
 
   // Calculate readiness score from profile
   const skillAssessment = (profile?.skill_assessment as SkillAssessment) || {
@@ -179,21 +169,40 @@ export default function DashboardPage() {
               <div className="bg-primary-50 px-6 py-4 border-b">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-xs font-medium text-primary-600 uppercase tracking-wide">Today&apos;s Learning</span>
-                    <h2 className="text-xl font-bold text-gray-900 mt-1">{todayContent.skill}</h2>
+                    <span className="text-xs font-medium text-primary-600 uppercase tracking-wide">Day {trialStatus.dayNumber} Learning</span>
+                    <h2 className="text-xl font-bold text-gray-900 mt-1">{todayContent.skillName}</h2>
                   </div>
-                  <span className="text-sm text-gray-500">{todayContent.duration}</span>
+                  <span className="text-sm text-gray-500">{todayContent.content.duration}</span>
                 </div>
               </div>
               <div className="p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">{todayContent.title}</h3>
                 <p className="text-gray-600 mb-4">{todayContent.preview}</p>
-                <button
-                  onClick={() => alert('Learning content coming soon! This will link to curated articles and videos.')}
-                  className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition"
+
+                {/* Key takeaways */}
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">What you&apos;ll learn:</p>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    {todayContent.content.keyTakeaways.slice(0, 3).map((takeaway, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-primary-500 mt-0.5">•</span>
+                        {takeaway}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <a
+                  href={todayContent.content.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition"
                 >
                   Start Learning →
-                </button>
+                </a>
+                <p className="text-xs text-gray-500 mt-2">
+                  Source: {todayContent.content.source} • {todayContent.content.type === 'video' ? 'Video' : 'Article'}
+                </p>
               </div>
             </div>
 
@@ -210,9 +219,23 @@ export default function DashboardPage() {
               </div>
               <div className="p-6">
                 <p className="text-gray-600 mb-4">{todayContent.experiment.description}</p>
+
+                {/* Experiment steps */}
+                <div className="bg-amber-50 rounded-lg p-4 mb-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Steps:</p>
+                  <ol className="text-sm text-gray-600 space-y-2">
+                    {todayContent.experiment.steps.map((step, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-amber-600 font-medium">{idx + 1}.</span>
+                        {step}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
                 <div className="flex gap-3">
                   <button
-                    onClick={() => alert('Experiment template coming soon! This will open a guided workflow for this experiment.')}
+                    onClick={() => alert('Experiment started! Follow the steps above and mark complete when done.')}
                     className="bg-amber-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-amber-600 transition"
                   >
                     Start Experiment
@@ -223,6 +246,13 @@ export default function DashboardPage() {
                   >
                     Mark Complete
                   </button>
+                </div>
+
+                {/* Pro tip */}
+                <div className="mt-4 p-3 bg-primary-50 rounded-lg border border-primary-100">
+                  <p className="text-sm text-primary-800">
+                    <span className="font-medium">Pro tip:</span> {todayContent.proTip}
+                  </p>
                 </div>
               </div>
             </div>

@@ -150,6 +150,18 @@ export default function CapturePage() {
     setSaving(false)
 
     if (result.success) {
+      // Send welcome email (fire and forget - don't block navigation)
+      fetch('/api/email/welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          name: jobTitle ? jobTitle.split(' ')[0] : 'there',
+          readinessScore,
+          focusArea
+        })
+      }).catch(err => console.error('Welcome email failed:', err))
+
       router.push('/dashboard')
     } else {
       setSaveError(result.error || 'Failed to save. Please try again.')
